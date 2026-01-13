@@ -1,0 +1,23 @@
+name: Daily Scheduled Publish
+
+on:
+  schedule:
+      - cron: '0 0 * * *' # Runs at 00:00 UTC every day
+        workflow_dispatch: # Allows manual trigger
+
+        jobs:
+          publish:
+              runs-on: ubuntu-latest
+                  steps:
+                        - name: Checkout code
+                                uses: actions/checkout@v3
+
+                                      - name: Publish Update
+                                              run: |
+                                                        echo "Daily automated publish at $(date)" >> publish_log.txt
+                                                                  git config --global user.name 'GitHub Action'
+                                                                            git config --global user.email 'action@github.com'
+                                                                                      git add publish_log.txt
+                                                                                                git commit -m "Daily automated publish $(date)"
+                                                                                                          git push
+                                                                                                          
