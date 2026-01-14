@@ -1,4 +1,18 @@
-import requests
+"Error fetching data: {e}")
+        return None
+
+def format_message(data):
+        def to_new(val_str):
+                    try:
+                                    val = float(val_str.replace(',', ''))
+                                    return f"{val/100:,.2f}"
+                                except:
+                                                return "0.00"
+                                    
+                def to_usd_price(val_str, usd_sell):
+                            try:
+                                            val = float(val_str.replace(',', ''))
+                                            usd = float(usd_sell.replaceimport requests
 from bs4 import BeautifulSoup
 import time
 import datetime
@@ -24,7 +38,6 @@ def get_sp_today_data():
         # استخراج العملات من الجدول
         rows = soup.find_all('tr')
         for row in rows:
-            text = row.get_text()
             cols = row.find_all('td')
             if len(cols) >= 3:
                 currency_name = cols[0].get_text().strip()
@@ -72,7 +85,7 @@ def get_sp_today_data():
                 if len(parts) >= 2:
                     data['fuel_gas'] = parts[1]
 
-        # قيم افتراضية
+        # قيم افتراضية في حال الفشل
         data.setdefault('usd', ('12,160', '12,240'))
         data.setdefault('eur', ('14,090', '14,290'))
         data.setdefault('try', ('280', '284'))
@@ -98,58 +111,72 @@ def format_message(data):
         except:
             return "0.00"
 
+    def to_usd_price(val_str, usd_sell):
+        try:
+            val = float(val_str.replace(',', ''))
+            usd = float(usd_sell.replace(',', ''))
+            return f"{val/usd:,.2f}"
+        except:
+            return "0.00"
+
+    usd_sell = data['usd'][1]
+
     msg = f"🇸🇾 نشرة أسعار الصرف والذهب في سوريا 🇸🇾\n"
     msg += f"⏰ {data['date']}\n\n"
+    
     msg += f"💰 أسعار العملات (شراء | مبيع):\n"
     msg += f"━━━━━━━━━━━━━━━━━━\n"
+    
     msg += f"🇺🇸 الدولار الأمريكي:\n"
-    msg += f"  - القديمة: {data['usd'][0]} | {data['usd'][1]}\n"
-    msg += f"  - الجديدة: {to_new(data['usd'][0])} | {to_new(data['usd'][1])}\n\n"
+    msg += f"  - السعر القديم: {data['usd'][0]} | {data['usd'][1]} ل.س\n"
+    msg += f"  - السعر الجديد: {to_new(data['usd'][0])} | {to_new(data['usd'][1])} ل.س\n\n"
+    
     msg += f"🇪🇺 اليورو:\n"
-    msg += f"  - القديمة: {data['eur'][0]} | {data['eur'][1]}\n"
-    msg += f"  - الجديدة: {to_new(data['eur'][0])} | {to_new(data['eur'][1])}\n\n"
+    msg += f"  - السعر القديم: {data['eur'][0]} | {data['eur'][1]} ل.س\n"
+    msg += f"  - السعر الجديد: {to_new(data['eur'][0])} | {to_new(data['eur'][1])} ل.س\n"
+    msg += f"  - بالدولار: {to_usd_price(data['eur'][1], usd_sell)} $\n\n"
+    
     msg += f"🇹🇷 الليرة التركية:\n"
-    msg += f"  - القديمة: {data['try'][0]} | {data['try'][1]}\n"
-    msg += f"  - الجديدة: {to_new(data['try'][0])} | {to_new(data['try'][1])}\n\n"
-    msg += f"✨ أسعار الذهب (بالليرة السورية):\n"
+    msg += f"  - السعر القديم: {data['try'][0]} | {data['try'][1]} ل.س\n"
+    msg += f"  - السعر الجديد: {to_new(data['try'][0])} | {to_new(data['try'][1])} ل.س\n"
+    msg += f"  - بالدولار: {to_usd_price(data['try'][1], usd_sell)} $\n\n"
+    
+    msg += f"✨ أسعار الذهب:\n"
     msg += f"━━━━━━━━━━━━━━━━━━\n"
-    msg += f"🔸 عيار 21: {data['gold_21']} ل.س\n"
-    msg += f"🔸 عيار 18: {data['gold_18']} ل.س\n"
+    msg += f"🔸 عيار 21:\n"
+    msg += f"  - {data['gold_21']} ل.س\n"
+    msg += f"  - {to_new(data['gold_21'])} ل.س (جديد)\n"
+    msg += f"  - {to_usd_price(data['gold_21'], usd_sell)} $\n\n"
+    
+    msg += f"🔸 عيار 18:\n"
+    msg += f"  - {data['gold_18']} ل.س\n"
+    msg += f"  - {to_new(data['gold_18'])} ل.س (جديد)\n"
+    msg += f"  - {to_usd_price(data['gold_18'], usd_sell)} $\n\n"
+    
     msg += f"🌍 الأونصة: {data['gold_ounce_usd']} $\n"
     msg += f"🪙 الليرة الذهبية: {data['gold_coin']} ل.س\n\n"
+    
     msg += f"⛽ المحروقات والطاقة:\n"
     msg += f"━━━━━━━━━━━━━━━━━━\n"
-    msg += f"⛽ بنزين: {data['fuel_gasoline']} ل.س\n"
-    msg += f"🛢️ مازوت: {data['fuel_diesel']} ل.س\n"
-    msg += f"🔵 غاز: {data['fuel_gas']} ل.س\n\n"
+    msg += f"⛽ بنزين: {data['fuel_gasoline']} ل.س ({to_usd_price(data['fuel_gasoline'], usd_sell)} $)\n"
+    msg += f"🛢️ مازوت: {data['fuel_diesel']} ل.س ({to_usd_price(data['fuel_diesel'], usd_sell)} $)\n"
+    msg += f"🔵 غاز: {data['fuel_gas']} ل.س ({to_usd_price(data['fuel_gas'], usd_sell)} $)\n\n"
+    
     msg += f"📢 اشترك لتصلك التحديثات فوراً:\n"
     msg += f"🔗 {CHANNEL_ID}\n"
     msg += f"━━━━━━━━━━━━━━━━━━"
     return msg
 
 def main():
-    print("Starting bot...")
+    print("Checking for updates...")
     data = get_sp_today_data()
     if data:
         message = format_message(data)
         try:
             bot.send_message(CHANNEL_ID, message)
-            print("Initial test message sent!")
+            print("Update sent to channel!")
         except Exception as e:
-            print(f"Error sending initial message: {e}")
-
-    last_data_str = str(data) if data else ""
-    while True:
-        time.sleep(1800)
-        data = get_sp_today_data()
-        if data and str(data) != last_data_str:
-            message = format_message(data)
-            try:
-                bot.send_message(CHANNEL_ID, message)
-                print("Update sent to channel!")
-                last_data_str = str(data)
-            except Exception as e:
-                print(f"Error sending update: {e}")
+            print(f"Error sending message: {e}")
 
 if __name__ == '__main__':
     main()
