@@ -78,30 +78,20 @@ def get_data():
                 match = re.search(r'\$(\d+[\d,.]*)', text)
                 if match: data['gold_ounce'] = match.group(1)
 
-        # استخراج المحروقات وتصحيح الأسعار
-        for link in links:
-            text = link.get_text(separator="|").strip()
-            parts = [p.strip() for p in text.split('|') if p.strip()]
-            
-            fuel_name = None
-            if 'بنزين' in parts: fuel_name = 'بنزين'
-            elif 'مازوت' in parts: fuel_name = 'مازوت'
-            elif 'غاز' in parts: fuel_name = 'غاز'
-            
-            if fuel_name and len(parts) >= 4:
-                # السعر العالمي بالدولار غالباً يكون في الجزء الثالث (index 2)
-                price_usd_str = parts[2].replace('$', '').split('/')[0]
-                try:
-                    price_usd = float(price_usd_str)
-                    # حساب السعر بالليرة السورية بناءً على سعر الصرف الحالي
-                    price_syp = price_usd * usd_sell_price
-                    data['fuel'].append({
-                        'name': fuel_name,
-                        'price_syp': f"{price_syp:,.0f}",
-                        'price_usd': f"{price_usd:.2f}"
-                    })
-                except:
-                    continue
+        # تثبيت أسعار المحروقات (آخر تسعيرة معروفة)
+        fuel_defaults = [
+            {'name': 'بنزين', 'price_usd': 0.85},
+            {'name': 'مازوت', 'price_usd': 0.75},
+            {'name': 'غاز', 'price_usd': 10.50}
+        ]
+        
+        for f in fuel_defaults:
+            price_syp = f['price_usd'] * usd_sell_price
+            data['fuel'].append({
+                'name': f['name'],
+                'price_syp': f"{price_syp:,.0f}",
+                'price_usd': f"{f['price_usd']:.2f}"
+            })
 
         syria_tz = pytz.timezone('Asia/Damascus')
         now_syria = datetime.datetime.now(syria_tz)
