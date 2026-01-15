@@ -4,6 +4,7 @@ import time
 import datetime
 import telebot
 import re
+import pytz
 
 # إعدادات البوت
 TOKEN = '8566644337:AAHA1kwjhaUYPrrFiupYy0yssDoz5OmRyG0'
@@ -39,7 +40,6 @@ def get_data():
             
             for code, name in target_currencies.items():
                 if code in parts and code not in found_codes:
-                    # البحث عن الأرقام في الأجزاء التالية
                     prices = []
                     for p in parts:
                         clean_p = p.replace(',', '')
@@ -78,7 +78,10 @@ def get_data():
             elif 'غاز' in parts and len(parts) >= 4:
                 data['fuel'].append({'name': 'غاز', 'price': parts[3]})
 
-        data['date'] = datetime.datetime.now().strftime("%Y-%m-%d | %I:%M %p")
+        # ضبط التوقيت حسب توقيت سوريا
+        syria_tz = pytz.timezone('Asia/Damascus')
+        now_syria = datetime.datetime.now(syria_tz)
+        data['date'] = now_syria.strftime("%Y-%m-%d | %I:%M %p")
         return data
     except Exception as e:
         print(f"Error: {e}")
@@ -92,7 +95,7 @@ def format_msg(data):
         except: return "0.00"
 
     msg = "🇸🇾 *نشرة أسعار الصرف والذهب في سوريا* 🇸🇾\n"
-    msg += f"⏰ `{data['date']}`\n\n"
+    msg += f"⏰ `{data['date']}` (توقيت دمشق)\n\n"
     
     if data['currencies']:
         msg += "💰 *أسعار العملات (شراء | مبيع):*\n"
