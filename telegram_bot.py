@@ -33,6 +33,7 @@ def get_data():
         
         links = soup.find_all('a')
         found_codes = set()
+        usd_sell_price = 12330 # قيمة افتراضية في حال فشل الجلب
         
         for link in links:
             text = link.get_text(separator="|").strip()
@@ -54,15 +55,20 @@ def get_data():
                             'sell': prices[1]
                         })
                         found_codes.add(code)
+                        if code == 'USD':
+                            usd_sell_price = float(prices[1].replace(',', ''))
+
+        data['usd_rate'] = usd_sell_price
 
         # استخراج الذهب
         for link in links:
             text = link.get_text(separator="|").strip()
             parts = [p.strip() for p in text.split('|') if p.strip()]
+            # الذهب عيار 21 و 18 يحتويان على السعر بالدولار في الجزء الثالث (index 2)
             if '21K' in parts and len(parts) >= 5:
-                data['gold'].append({'name': 'عيار 21', 'price': parts[4]})
+                data['gold'].append({'name': 'عيار 21', 'price_syp': parts[4], 'price_usd': parts[2].replace('$', '')})
             elif '18K' in parts and len(parts) >= 5:
-                data['gold'].append({'name': 'عيار 18', 'price': parts[4]})
+                data['gold'].append({'name': 'عيار 18', 'price_syp': parts[4], 'price_usd': parts[2].replace('$', '')})
             elif 'أونصة الذهب' in text:
                 match = re.search(r'\$(\d+[\d,.]*)', text)
                 if match: data['gold_ounce'] = match.group(1)
@@ -71,12 +77,13 @@ def get_data():
         for link in links:
             text = link.get_text(separator="|").strip()
             parts = [p.strip() for p in text.split('|') if p.strip()]
+            # المحروقات تحتوي على السعر بالدولار في الجزء الثالث (index 2)
             if 'بنزين' in parts and len(parts) >= 4:
-                data['fuel'].append({'name': 'بنزين', 'price': parts[3]})
+                data['fuel'].append({'name': 'بنزين', 'price_syp': parts[3].replace(' ل.س', ''), 'price_usd': parts[2].replace('$', '').split('/')[0]})
             elif 'مازوت' in parts and len(parts) >= 4:
-                data['fuel'].append({'name': 'مازوت', 'price': parts[3]})
+                data['fuel'].append({'name': 'مازوت', 'price_syp': parts[3].replace(' ل.س', ''), 'price_usd': parts[2].replace('$', '').split('/')[0]})
             elif 'غاز' in parts and len(parts) >= 4:
-                data['fuel'].append({'name': 'غاز', 'price': parts[3]})
+                data['fuel'].append({'name': 'غاز', 'price_syp': parts[3].replace(' ل.س', ''), 'price_usd': parts[2].replace('$', '').split('/')[0]})
 
         # ضبط التوقيت حسب توقيت سوريا
         syria_tz = pytz.timezone('Asia/Damascus')
@@ -109,17 +116,21 @@ def format_msg(data):
         msg += "✨ *أسعار الذهب:*\n"
         msg += "━━━━━━━━━━━━━━━━━━\n"
         for g in data['gold']:
-            msg += f"🔸 {g['name']}: {g['price']} ل.س (`{calc_new(g['price'])}` جديد)\n"
+            msg += f"🔸 *{g['name']}:*\n"
+            msg += f"  - ليرة قديمة: {g['price_syp']} ل.س\n"
+            msg += f"  - ليرة جديدة: `{calc_new(g['price_syp'])}` ل.س\n"
+            msg += f"  - بالدولار: `${g['price_usd']}`\n\n"
         if 'gold_ounce' in data:
-            msg += f"🌍 أونصة الذهب: `${data['gold_ounce']}`\n"
-        msg += "\n"
+            msg += f"🌍 أونصة الذهب: `${data['gold_ounce']}`\n\n"
     
     if data['fuel']:
         msg += "⛽ *المحروقات والطاقة:*\n"
         msg += "━━━━━━━━━━━━━━━━━━\n"
         for f in data['fuel']:
-            msg += f"🔹 {f['name']}: {f['price']}\n"
-        msg += "\n"
+            msg += f"🔹 *{f['name']}:*\n"
+            msg += f"  - ليرة قديمة: {f['price_syp']} ل.س\n"
+            msg += f"  - ليرة جديدة: `{calc_new(f['price_syp'])}` ل.س\n"
+            msg += f"  - بالدولار: `${f['price_usd']}`\n\n"
     
     msg += "📢 *تابعونا عبر منصاتنا:*\n"
     msg += "━━━━━━━━━━━━━━━━━━\n\n"
