@@ -39,7 +39,7 @@ def get_data():
         
         links = soup.find_all('a')
         found_codes = set()
-        usd_sell_price = 12330 # قيمة افتراضية في حال فشل الجلب
+        usd_sell_price = 14800 # قيمة افتراضية تقريبية
         
         for link in links:
             text = link.get_text(separator="|").strip()
@@ -50,7 +50,7 @@ def get_data():
                     prices = []
                     for p in parts:
                         clean_p = p.replace(',', '')
-                        if clean_p.isdigit():
+                        if clean_p.replace('.', '').isdigit():
                             prices.append(p)
                     
                     if len(prices) >= 2:
@@ -70,7 +70,6 @@ def get_data():
         for link in links:
             text = link.get_text(separator="|").strip()
             parts = [p.strip() for p in text.split('|') if p.strip()]
-            # الذهب عيار 21 و 18 يحتويان على السعر بالدولار في الجزء الثالث (index 2)
             if '21K' in parts and len(parts) >= 5:
                 data['gold'].append({'name': 'عيار 21', 'price_syp': parts[4], 'price_usd': parts[2].replace('$', '')})
             elif '18K' in parts and len(parts) >= 5:
@@ -79,19 +78,31 @@ def get_data():
                 match = re.search(r'\$(\d+[\d,.]*)', text)
                 if match: data['gold_ounce'] = match.group(1)
 
-        # استخراج المحروقات
+        # استخراج المحروقات وتصحيح الأسعار
         for link in links:
             text = link.get_text(separator="|").strip()
             parts = [p.strip() for p in text.split('|') if p.strip()]
-            # المحروقات تحتوي على السعر بالدولار في الجزء الثالث (index 2)
-            if 'بنزين' in parts and len(parts) >= 4:
-                data['fuel'].append({'name': 'بنزين', 'price_syp': parts[3].replace(' ل.س', ''), 'price_usd': parts[2].replace('$', '').split('/')[0]})
-            elif 'مازوت' in parts and len(parts) >= 4:
-                data['fuel'].append({'name': 'مازوت', 'price_syp': parts[3].replace(' ل.س', ''), 'price_usd': parts[2].replace('$', '').split('/')[0]})
-            elif 'غاز' in parts and len(parts) >= 4:
-                data['fuel'].append({'name': 'غاز', 'price_syp': parts[3].replace(' ل.س', ''), 'price_usd': parts[2].replace('$', '').split('/')[0]})
+            
+            fuel_name = None
+            if 'بنزين' in parts: fuel_name = 'بنزين'
+            elif 'مازوت' in parts: fuel_name = 'مازوت'
+            elif 'غاز' in parts: fuel_name = 'غاز'
+            
+            if fuel_name and len(parts) >= 4:
+                # السعر العالمي بالدولار غالباً يكون في الجزء الثالث (index 2)
+                price_usd_str = parts[2].replace('$', '').split('/')[0]
+                try:
+                    price_usd = float(price_usd_str)
+                    # حساب السعر بالليرة السورية بناءً على سعر الصرف الحالي
+                    price_syp = price_usd * usd_sell_price
+                    data['fuel'].append({
+                        'name': fuel_name,
+                        'price_syp': f"{price_syp:,.0f}",
+                        'price_usd': f"{price_usd:.2f}"
+                    })
+                except:
+                    continue
 
-        # ضبط التوقيت حسب توقيت سوريا
         syria_tz = pytz.timezone('Asia/Damascus')
         now_syria = datetime.datetime.now(syria_tz)
         data['date'] = now_syria.strftime("%Y-%m-%d | %I:%M %p")
@@ -108,7 +119,7 @@ def format_msg(data):
         except: return "0.00"
 
     msg = "🇸🇾 *نشرة أسعار الصرف والذهب في سوريا* 🇸🇾\n"
-    msg += f"⏰ `{data['date']}` (توقيت دمشق)\n\n"
+    msg += f"⏰ \`{data['date']}\` (توقيت دمشق)\n\n"
     
     if data['currencies']:
         msg += "💰 *أسعار العملات (شراء | مبيع):*\n"
@@ -116,7 +127,7 @@ def format_msg(data):
         for c in data['currencies']:
             msg += f"🔹 *{c['name']} ({c['code']}):*\n"
             msg += f"  - ليرة قديمة: {c['buy']} | {c['sell']}\n"
-            msg += f"  - ليرة جديدة: `{calc_new(c['buy'])}` | `{calc_new(c['sell'])}` ✨\n\n"
+            msg += f"  - ليرة جديدة: \`{calc_new(c['buy'])}\` | \`{calc_new(c['sell'])}\` ✨\n\n"
     
     if data['gold'] or 'gold_ounce' in data:
         msg += "✨ *أسعار الذهب:*\n"
@@ -124,10 +135,10 @@ def format_msg(data):
         for g in data['gold']:
             msg += f"🔸 *{g['name']}:*\n"
             msg += f"  - ليرة قديمة: {g['price_syp']} ل.س\n"
-            msg += f"  - ليرة جديدة: `{calc_new(g['price_syp'])}` ل.س\n"
-            msg += f"  - بالدولار: `${g['price_usd']}`\n\n"
+            msg += f"  - ليرة جديدة: \`{calc_new(g['price_syp'])}\` ل.س\n"
+            msg += f"  - بالدولار: \`\${g['price_usd']}\`\n\n"
         if 'gold_ounce' in data:
-            msg += f"🌍 أونصة الذهب: `${data['gold_ounce']}`\n\n"
+            msg += f"🌍 أونصة الذهب: \`\${data['gold_ounce']}\`\n\n"
     
     if data['fuel']:
         msg += "⛽ *المحروقات والطاقة:*\n"
@@ -135,8 +146,8 @@ def format_msg(data):
         for f in data['fuel']:
             msg += f"🔹 *{f['name']}:*\n"
             msg += f"  - ليرة قديمة: {f['price_syp']} ل.س\n"
-            msg += f"  - ليرة جديدة: `{calc_new(f['price_syp'])}` ل.س\n"
-            msg += f"  - بالدولار: `${f['price_usd']}`\n\n"
+            msg += f"  - ليرة جديدة: \`{calc_new(f['price_syp'])}\` ل.س\n"
+            msg += f"  - بالدولار: \`\${f['price_usd']}\`\n\n"
     
     msg += "📢 *تابعونا عبر منصاتنا:*\n"
     msg += "━━━━━━━━━━━━━━━━━━\n\n"
@@ -194,33 +205,21 @@ def format_fb_msg(data):
     return msg
 
 def publish_to_telegram(message):
-    """نشر على تيلجرام"""
     try:
         bot.send_message(CHANNEL_ID, message, parse_mode='Markdown', disable_web_page_preview=True)
         print("✅ Telegram: Success!")
         return True
     except Exception as e:
         print(f"❌ Telegram Error: {e}")
-        try:
-            bot.send_message(CHANNEL_ID, message.replace('*', '').replace('`', ''))
-            print("✅ Telegram: Success (plain text)!")
-            return True
-        except Exception as e2:
-            print(f"❌ Telegram Error (plain): {e2}")
-            return False
+        return False
 
 def publish_to_facebook_page(message):
-    """نشر على صفحة فيسبوك"""
     if not FB_PAGE_ACCESS_TOKEN:
         print("⚠️ Facebook Page: No access token provided, skipping...")
         return False
-    
     try:
         url = f"https://graph.facebook.com/v18.0/{FB_PAGE_ID}/feed"
-        payload = {
-            'message': message,
-            'access_token': FB_PAGE_ACCESS_TOKEN
-        }
+        payload = {'message': message, 'access_token': FB_PAGE_ACCESS_TOKEN}
         response = requests.post(url, data=payload, timeout=30)
         if response.status_code == 200:
             print("✅ Facebook Page: Success!")
@@ -233,17 +232,12 @@ def publish_to_facebook_page(message):
         return False
 
 def publish_to_facebook_group(message):
-    """نشر على مجموعة فيسبوك"""
     if not FB_PAGE_ACCESS_TOKEN:
         print("⚠️ Facebook Group: No access token provided, skipping...")
         return False
-    
     try:
         url = f"https://graph.facebook.com/v18.0/{FB_GROUP_ID}/feed"
-        payload = {
-            'message': message,
-            'access_token': FB_PAGE_ACCESS_TOKEN
-        }
+        payload = {'message': message, 'access_token': FB_PAGE_ACCESS_TOKEN}
         response = requests.post(url, data=payload, timeout=30)
         if response.status_code == 200:
             print("✅ Facebook Group: Success!")
@@ -257,19 +251,13 @@ def publish_to_facebook_group(message):
 
 def main():
     print("🚀 Starting update...")
-    print(f"⏰ Current time: {datetime.datetime.now()}")
-    
     data = get_data()
     if data and data['currencies']:
-        # نشر على تيلجرام
         telegram_message = format_msg(data)
         publish_to_telegram(telegram_message)
-        
-        # نشر على فيسبوك
         facebook_message = format_fb_msg(data)
         publish_to_facebook_page(facebook_message)
         publish_to_facebook_group(facebook_message)
-        
         print("\n✅ All publishing tasks completed!")
     else:
         print("❌ No data found.")
