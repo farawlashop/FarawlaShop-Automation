@@ -18,9 +18,9 @@ def get_sp_today_data():
     try:
         response = requests.get(url, headers=headers, timeout=15)
         soup = BeautifulSoup(response.content, 'html.parser')
-        data = {}
+        data = {'currencies': []}
 
-        # استخراج العملات من الجدول
+        # استخراج كافة العملات من الجدول
         rows = soup.find_all('tr')
         for row in rows:
             cols = row.find_all('td')
@@ -28,13 +28,20 @@ def get_sp_today_data():
                 currency_name = cols[0].get_text().strip()
                 buy = cols[1].get_text().strip()
                 sell = cols[2].get_text().strip()
-
+                
+                # تنظيف الاسم من الرموز والكلمات الزائدة
+                clean_name = currency_name.replace('USD', '').replace('EUR', '').replace('TRY', '').strip()
+                
+                currency_info = {
+                    'name': currency_name,
+                    'buy': buy,
+                    'sell': sell
+                }
+                data['currencies'].append(currency_info)
+                
+                # حفظ الدولار بشكل خاص للحسابات
                 if 'USD' in currency_name or 'دولار' in currency_name:
-                    data['usd'] = (buy, sell)
-                elif 'EUR' in currency_name or 'يورو' in currency_name:
-                    data['eur'] = (buy, sell)
-                elif 'TRY' in currency_name or 'ليرة تركية' in currency_name:
-                    data['try'] = (buy, sell)
+                    data['usd_sell'] = sell
 
         # استخراج الذهب
         gold_items = soup.find_all('a')
@@ -42,16 +49,13 @@ def get_sp_today_data():
             text = item.get_text()
             if '21K' in text:
                 parts = re.findall(r'[\d,.]+', text)
-                if len(parts) >= 4:
-                    data['gold_21'] = parts[3]
+                if len(parts) >= 4: data['gold_21'] = parts[3]
             elif '18K' in text:
                 parts = re.findall(r'[\d,.]+', text)
-                if len(parts) >= 4:
-                    data['gold_18'] = parts[3]
+                if len(parts) >= 4: data['gold_18'] = parts[3]
             elif 'أونصة الذهب' in text:
                 parts = re.findall(r'[\d,.]+', text)
-                if len(parts) >= 1:
-                    data['gold_ounce_usd'] = parts[0]
+                if len(parts) >= 1: data['gold_ounce_usd'] = parts[0]
 
         # استخراج المحروقات
         fuel_items = soup.find_all('a')
@@ -59,28 +63,13 @@ def get_sp_today_data():
             text = item.get_text()
             if 'بنزين' in text:
                 parts = re.findall(r'[\d,.]+', text)
-                if len(parts) >= 2:
-                    data['fuel_gasoline'] = parts[1]
+                if len(parts) >= 2: data['fuel_gasoline'] = parts[1]
             elif 'مازوت' in text:
                 parts = re.findall(r'[\d,.]+', text)
-                if len(parts) >= 2:
-                    data['fuel_diesel'] = parts[1]
+                if len(parts) >= 2: data['fuel_diesel'] = parts[1]
             elif 'غاز' in text:
                 parts = re.findall(r'[\d,.]+', text)
-                if len(parts) >= 2:
-                    data['fuel_gas'] = parts[1]
-
-        # قيم افتراضية في حال الفشل
-        data.setdefault('usd', ('12,160', '12,240'))
-        data.setdefault('eur', ('14,090', '14,290'))
-        data.setdefault('try', ('280', '284'))
-        data.setdefault('gold_21', '1,590,700')
-        data.setdefault('gold_18', '1,363,500')
-        data.setdefault('gold_ounce_usd', '4,596')
-        data.setdefault('gold_coin', '12,725,000')
-        data.setdefault('fuel_gasoline', '10,400')
-        data.setdefault('fuel_diesel', '9,180')
-        data.setdefault('fuel_gas', '128,520')
+                if len(parts) >= 2: data['fuel_gas'] = parts[1]
 
         data['date'] = datetime.datetime.now().strftime("%Y-%m-%d | %I:%M %p")
         return data
@@ -93,18 +82,16 @@ def format_message(data):
         try:
             val = float(val_str.replace(',', ''))
             return f"{val/100:,.2f}"
-        except:
-            return "0.00"
+        except: return "0.00"
 
-    def to_usd_price(val_str, usd_sell):
+    def to_usd_price(val_str, usd_sell_str):
         try:
             val = float(val_str.replace(',', ''))
-            usd = float(usd_sell.replace(',', ''))
+            usd = float(usd_sell_str.replace(',', ''))
             return f"{val/usd:,.2f}"
-        except:
-            return "0.00"
+        except: return "0.00"
 
-    usd_sell = data['usd'][1]
+    usd_sell = data.get('usd_sell', '12,330')
 
     msg = f"🇸🇾 نشرة أسعار الصرف والذهب في سوريا 🇸🇾\n"
     msg += f"⏰ {data['date']}\n\n"
@@ -112,43 +99,40 @@ def format_message(data):
     msg += f"💰 أسعار العملات (شراء | مبيع):\n"
     msg += f"━━━━━━━━━━━━━━━━━━\n"
     
-    msg += f"🇺🇸 الدولار الأمريكي:\n"
-    msg += f"  - السعر القديم: {data['usd'][0]} | {data['usd'][1]} ل.س\n"
-    msg += f"  - السعر الجديد: {to_new(data['usd'][0])} | {to_new(data['usd'][1])} ل.س\n\n"
-    
-    msg += f"🇪🇺 اليورو:\n"
-    msg += f"  - السعر القديم: {data['eur'][0]} | {data['eur'][1]} ل.س\n"
-    msg += f"  - السعر الجديد: {to_new(data['eur'][0])} | {to_new(data['eur'][1])} ل.س\n"
-    msg += f"  - بالدولار: {to_usd_price(data['eur'][1], usd_sell)} $\n\n"
-    
-    msg += f"🇹🇷 الليرة التركية:\n"
-    msg += f"  - السعر القديم: {data['try'][0]} | {data['try'][1]} ل.س\n"
-    msg += f"  - السعر الجديد: {to_new(data['try'][0])} | {to_new(data['try'][1])} ل.س\n"
-    msg += f"  - بالدولار: {to_usd_price(data['try'][1], usd_sell)} $\n\n"
+    for curr in data['currencies']:
+        msg += f"🔹 {curr['name']}:\n"
+        msg += f"  - القديم: {curr['buy']} | {curr['sell']} ل.س\n"
+        msg += f"  - الجديد: {to_new(curr['buy'])} | {to_new(curr['sell'])} ل.س\n\n"
     
     msg += f"✨ أسعار الذهب:\n"
     msg += f"━━━━━━━━━━━━━━━━━━\n"
-    msg += f"🔸 عيار 21:\n"
-    msg += f"  - {data['gold_21']} ل.س\n"
-    msg += f"  - {to_new(data['gold_21'])} ل.س (جديد)\n"
-    msg += f"  - {to_usd_price(data['gold_21'], usd_sell)} $\n\n"
+    if 'gold_21' in data:
+        msg += f"🔸 عيار 21: {data['gold_21']} ل.س ({to_new(data['gold_21'])} جديد)\n"
+    if 'gold_18' in data:
+        msg += f"🔸 عيار 18: {data['gold_18']} ل.س ({to_new(data['gold_18'])} جديد)\n"
+    if 'gold_ounce_usd' in data:
+        msg += f"🌍 الأونصة: {data['gold_ounce_usd']} $\n"
+    msg += "\n"
     
-    msg += f"🔸 عيار 18:\n"
-    msg += f"  - {data['gold_18']} ل.س\n"
-    msg += f"  - {to_new(data['gold_18'])} ل.س (جديد)\n"
-    msg += f"  - {to_usd_price(data['gold_18'], usd_sell)} $\n\n"
+    # إضافة المحروقات فقط إذا توفرت
+    fuel_msg = ""
+    if 'fuel_gasoline' in data:
+        fuel_msg += f"⛽ بنزين: {data['fuel_gasoline']} ل.س\n"
+    if 'fuel_diesel' in data:
+        fuel_msg += f"🛢️ مازوت: {data['fuel_diesel']} ل.س\n"
+    if 'fuel_gas' in data:
+        fuel_msg += f"🔵 غاز: {data['fuel_gas']} ل.س\n"
     
-    msg += f"🌍 الأونصة: {data['gold_ounce_usd']} $\n"
-    msg += f"🪙 الليرة الذهبية: {data['gold_coin']} ل.س\n\n"
+    if fuel_msg:
+        msg += f"⛽ المحروقات والطاقة:\n"
+        msg += f"━━━━━━━━━━━━━━━━━━\n"
+        msg += fuel_msg + "\n"
     
-    msg += f"⛽ المحروقات والطاقة:\n"
+    msg += f"📢 تابعونا عبر منصاتنا:\n"
     msg += f"━━━━━━━━━━━━━━━━━━\n"
-    msg += f"⛽ بنزين: {data['fuel_gasoline']} ل.س ({to_usd_price(data['fuel_gasoline'], usd_sell)} $)\n"
-    msg += f"🛢️ مازوت: {data['fuel_diesel']} ل.س ({to_usd_price(data['fuel_diesel'], usd_sell)} $)\n"
-    msg += f"🔵 غاز: {data['fuel_gas']} ل.س ({to_usd_price(data['fuel_gas'], usd_sell)} $)\n\n"
-    
-    msg += f"📢 اشترك لتصلك التحديثات فوراً:\n"
-    msg += f"🔗 {CHANNEL_ID}\n"
+    msg += f"🔗 تلجرام: https://t.me/FarawlaShop\n"
+    msg += f"🔗 واتساب: https://whatsapp.com/channel/0029VaQSQveCRs1vibyRZp3A\n"
+    msg += f"🔗 فيسبوك: https://www.facebook.com/profile.php?id=61584349121096\n"
     msg += f"━━━━━━━━━━━━━━━━━━"
     return msg
 
